@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Admin · Subir plantilla</title>
+<link rel="stylesheet" href="assets/app.css">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+</head>
+<body>
+<header>
+  <div><h1>Admin · Cargar facturas</h1>
+  <div class="sub">Sube el Excel con la plantilla mensual y descarga el JSON.</div></div>
+  <nav class="tabs">
+    <button onclick="location.href='index.html'">← Volver al dashboard</button>
+  </nav>
+</header>
+<main>
+  <div class="panel">
+    <h2>1 · Sube el archivo</h2>
+    <div class="upload-zone" id="drop">
+      <p><strong>Arrastra o haz clic</strong> para seleccionar .xlsx / .csv</p>
+      <input type="file" id="file" accept=".xlsx,.xls,.csv" hidden>
+    </div>
+    <div id="result"></div>
+  </div>
+</main>
+
+<script>
+const REGEX_UNIDAD = /\b(?:TR[-\s]?\d{2,3}|GG[-\s]?\d{3,4}[-\s]?C?|URVAN)\b/i;
+const RULES = [
+  { re:/DESINSTALACION/i,                                c:"DESINSTALACIONES",       cat:"COSTO VARIABLE" },
+  { re:/SERV[-\s]?RENT[-\s]?VID|RENTA\s*VIDEO/i,         c:"RENTA MENSUAL (VIDEO)",  cat:"COSTO FIJO" },
+  { re:/SERV[-\s]?RENT[-\s]?RAS|RENTA\s*RASTREO|SERVICIO\s*RENTA/i, c:"RENTA MENSUAL", cat:"COSTO FIJO" },
+  { re:/GPS\s*DE\s*TELEMETRIA|SERVICIO\s*TELEMETRIA/i,   c:"RENTA MENSUAL (TELEMETRIA)", cat:"COSTO FIJO" },
+  { re:/EQUIPO\s*ADAS|CAMARAS\s*ADICIONALES/i,           c:"RENTA ADAS",             cat:"COSTO FIJO" },
+  { re:/EQUIPO\s*SIM|EQUIPO\s*GPS\s*TELEMETRIA/i,        c:"INSTALACIONES GPS NUEVO",cat:"COSTO VARIABLE" },
+  { re:/EQUIPO\s*SENSOR|SENSOR\s*MAGNETICO/i,            c:"INSTALACIONES",          cat:"COSTO VARIABLE" },
+  { re:/INSTALACION/i,                                   c:"INSTALACIONES",          cat:"COSTO VARIABLE" }
+];
+const clasif = d => RULES.find(r=>r.re.test(d)) || { c:"SIN CLASIFICAR", cat:"SIN CLASIFICAR" };
+const toDate = v => !v ? "" : (typeof v==="string" ? v.slice(0,10) : new Date(v).toISOString().slice(0,10));
+
+let catalogo = {};
+async function init(){
+  catalogo = await fetch("data/catalogo-unidades.json").then(r=>r.json()).catch(()=>({}));
+  const drop = document.getElementById("drop");
+  const file = document.getElementById("file");
+  drop.onclick = ()=>file.click();
+  drop.ondragover = e=>{e.preventDefault();drop.classList.add("drag")};
+  drop.ondragleave = ()=>drop.classList.remove("drag");
+  drop.ondrop = e=>{e.preventDefault();drop.classList.remove("drag");handle(e.dataTransfer.files[0])};
+  file.onchange = ()=>handle(file.files[0]);
+}
+
+function handle(f){
+  if (!f) return;
+  const r = new FileReader();
+  r.onload = e => {
+    const wb = XLSX.read(e.target.result, {type:"array", cellDates:true});
+    const hoja = wb.Sheets[wb.SheetNames[0]];
+    const rows = XLSX.utils.sheet_to_json(hoja, {defval:""});
+    const facturas = rows
+      .filter(row => row["Factura"] && Number(row["Importe"])>0)
+      .map(row => {
+        const desc = String(row["Descripción"]||row["Descripcion"]||"").trim();
+        const m = desc.match(REGEX_UNIDAD);
+        const u = m ? m[0].toUpperCase().replace(/\s+/g,"-").replace("--","-") : "";
+        const cat = catalogo[u] || {};
+        const cls = clasif(desc);
+        return {
+          uuid: row["UUID"] || (crypto.randomUUID?.() ?? Math.random().toString(36).slice(2)),
+          factura: row["Factura"],
+          fecha: toDate(row["Fecha"]),
+          fecha_val_sat: toDate(row["Fecha Val. SAT"]),
+          lista_negra: row["Lista Negra"],
+          sucursal: row["Sucursal"],
+          razon_social: row["Socio"] || "MP RASTREO SATELITAL",
+          regimen_emisor: row["Régimen Emisor"],
+          regimen_receptor: row["Régimen Receptor"],
+          descripcion: desc,
+          importe: Number(row["Importe"]),
+          captura: toDate(row["Captura"]),
+          vencimiento: toDate(row["Vencimiento"]),
+          programacion: toDate(row["Programación"]),
+          recibida: toDate(row["Recibida"]),
+          estatus: row["Estatus"],
+          usuario: row["Usuario"],
+          metodo_pago: row["Método Pago"],
+          unidad: u,
+          tipo_unidad: cat.tipo || "",
+          cliente: cat.cliente || "",
+          concepto: cls.c,
+          categoria: cls.cat
+        };
+      });
+
+    mostrar(facturas, f.name);
+  };
+  r.readAsArrayBuffer(f);
+}
+
+function mostrar(facturas, nombre){
+  const total = facturas.reduce((s,x)=>s+x.importe,0);
+  const sinClasif = facturas.filter(f=>f.concepto==="SIN CLASIFICAR").length;
+  const sinUnidad = facturas.filter(f=>!f.unidad).length;
+
+  document.getElementById("result").innerHTML = `
+    <h3>Vista previa</h3>
+    <p><strong>Archivo:</strong> ${nombre}</p>
+    <p><strong>Facturas:</strong> ${facturas.length} · <strong>Total:</strong> ${money(total)}</p>
+    <p>${sinClasif?`<span style="color:#922b21">⚠ ${sinClasif} sin clasificar concepto</span><br>`:""}
+       ${sinUnidad?`<span style="color:#b9770e">⚠ ${sinUnidad} sin unidad detectada</span>`:""}</p>
+    <div class="row-actions">
+      <button class="btn" id="dl">Descargar JSON</button>
+      <button class="btn secondary" id="cp">Copiar JSON</button>
+    </div>
+    <div class="scroll" style="margin-top:14px;max-height:280px">
+      <table><thead><tr>
+        <th>Factura</th><th>Fecha</th><th>Unidad</th><th>Concepto</th>
+        <th>Categoría</th><th>Cliente</th><th class="num">Importe</th>
+      </tr></thead><tbody>
+        ${facturas.slice(0,200).map(f=>`<tr>
+          <td>${f.factura}</td><td>${f.fecha}</td><td>${f.unidad||"—"}</td>
+          <td>${f.concepto}</td><td>${f.categoria}</td><td>${f.cliente||"—"}</td>
+          <td class="num">${money(f.importe)}</td></tr>`).join("")}
+      </tbody></table>
+    </div>`;
+
+  const payload = {
+    metadata: { generado: new Date().toISOString().slice(0,10), origen: nombre },
+    facturas
+  };
+  const json = JSON.stringify(payload, null, 2);
+
+  document.getElementById("dl").onclick = ()=>{
+    const blob = new Blob([json], {type:"application/json"});
+    const a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "facturas-" + (nombre.replace(/\.[^.]+$/,"")) + ".json";
+    a.click();
+  };
+  document.getElementById("cp").onclick = ()=>navigator.clipboard.writeText(json);
+}
+
+const money = v => "$" + Number(v).toLocaleString("es-MX",{minimumFractionDigits:2,maximumFractionDigits:2});
+init();
+</script>
+</body>
+</html>
