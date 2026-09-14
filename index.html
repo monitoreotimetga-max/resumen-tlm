@@ -1,0 +1,122 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GPS · Facturas y Resumen</title>
+<link rel="stylesheet" href="assets/app.css">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<header>
+  <div>
+    <h1>GPS · SATECH METGA · TESON · ITURAN</h1>
+    <div class="sub">Registro de facturas · Resumen por concepto · Dashboard</div>
+  </div>
+  <nav class="tabs">
+    <button data-tab="dashboard" class="active">Dashboard</button>
+    <button data-tab="registro">Registro</button>
+    <button data-tab="resumen">Resumen</button>
+    <button data-tab="admin">Admin</button>
+  </nav>
+</header>
+
+<main>
+  <!-- ============== DASHBOARD ============== -->
+  <section id="tab-dashboard">
+    <div class="panel">
+      <h2>Filtros</h2>
+      <div class="filters">
+        <div><label>Razón social</label><br>
+          <select id="f-razon"></select></div>
+        <div><label>Cliente</label><br>
+          <select id="f-cliente"></select></div>
+        <div><label>Unidad</label><br>
+          <select id="f-unidad"></select></div>
+        <div><label>Concepto</label><br>
+          <select id="f-concepto"></select></div>
+        <div><label>Desde</label><br>
+          <input type="month" id="f-desde"></div>
+        <div><label>Hasta</label><br>
+          <input type="month" id="f-hasta"></div>
+        <div style="align-self:end"><button class="btn secondary" id="btn-reset">Limpiar</button></div>
+      </div>
+    </div>
+
+    <div class="grid cols-4">
+      <div class="kpi"><div class="label">Total facturado</div><div class="value" id="kpi-total">$0</div><div class="sub" id="kpi-n">0 facturas</div></div>
+      <div class="kpi"><div class="label">Costos fijos</div><div class="value" id="kpi-fijo">$0</div><div class="sub">Rentas</div></div>
+      <div class="kpi"><div class="label">Costos variables</div><div class="value" id="kpi-var">$0</div><div class="sub">Instalaciones / Desinstalaciones</div></div>
+      <div class="kpi"><div class="label">Ticket promedio</div><div class="value" id="kpi-avg">$0</div><div class="sub">Por factura</div></div>
+    </div>
+
+    <div class="charts">
+      <div class="chart-box"><h3>Evolución mensual por cliente</h3><canvas id="ch-mes"></canvas></div>
+      <div class="chart-box"><h3>Distribución por concepto</h3><canvas id="ch-concepto"></canvas></div>
+      <div class="chart-box"><h3>Fijo vs Variable por mes</h3><canvas id="ch-fv"></canvas></div>
+      <div class="chart-box"><h3>Top unidades por importe</h3><canvas id="ch-unidad"></canvas></div>
+    </div>
+  </section>
+
+  <!-- ============== REGISTRO ============== -->
+  <section id="tab-registro" hidden>
+    <div class="panel">
+      <h2>Registro por factura</h2>
+      <div class="filters">
+        <div><label>Buscar</label><br><input id="r-q" placeholder="Factura, UUID, descripción..."></div>
+        <div><label>Estatus</label><br><select id="r-estatus"></select></div>
+        <div><label>Mes</label><br><select id="r-mes"></select></div>
+      </div>
+      <div class="scroll">
+        <table id="tabla-registro">
+          <thead>
+            <tr>
+              <th>Factura</th><th>Fecha</th><th>Descripción</th>
+              <th>Unidad</th><th>Concepto</th><th>Cliente</th>
+              <th class="num">Importe</th><th>Estatus</th><th>UUID</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+      <div class="note" id="reg-total"></div>
+    </div>
+  </section>
+
+  <!-- ============== RESUMEN ============== -->
+  <section id="tab-resumen" hidden>
+    <div class="panel">
+      <h2>Resumen por concepto · formato presentación</h2>
+      <div class="filters">
+        <div><label>Cliente</label><br><select id="s-cliente"></select></div>
+        <div><label>Mes</label><br><select id="s-mes"></select></div>
+        <div style="align-self:end"><button class="btn secondary" id="s-print">Imprimir / PDF</button></div>
+      </div>
+      <div id="resumen-body"></div>
+    </div>
+  </section>
+
+  <!-- ============== ADMIN ============== -->
+  <section id="tab-admin" hidden>
+    <div class="panel">
+      <h2>Subir plantilla mensual</h2>
+      <div class="upload-zone" id="drop">
+        <p><strong>Arrastra el Excel aquí</strong> o haz clic para seleccionar</p>
+        <p class="note">Formatos: .xlsx, .xls, .csv. Debe incluir las columnas del registro SAT.</p>
+        <input type="file" id="file" accept=".xlsx,.xls,.csv" hidden>
+      </div>
+      <div id="admin-result"></div>
+    </div>
+    <div class="panel">
+      <h2>Plantilla</h2>
+      <p class="note">Descarga la plantilla vacía con los encabezados oficiales para que siempre exportes igual.</p>
+      <button class="btn secondary" id="btn-plantilla">Descargar plantilla CSV</button>
+    </div>
+  </section>
+</main>
+
+<script src="assets/parser.js"></script>
+<script src="assets/charts.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
